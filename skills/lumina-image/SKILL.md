@@ -1,17 +1,29 @@
 ---
 name: lumina-image
-description: >
-  Build Docker and OCI container images using Docker or Buildah. Use this skill whenever the user wants to
-  build a container image, create a Dockerfile, run `docker build`, use Buildah to assemble an image,
-  or anything related to producing container images from source code or configuration. This includes
-  requests like "build me an image", "containerize this app", "create a Docker image for my project",
-  "package this as a container", or even casual mentions like "I need to ship this in a container".
-  If the user is talking about building, creating, or assembling container images in any way, use this skill.
+description: "Build Docker and OCI container images using Docker or Buildah. Use this skill whenever the user wants to build a container image, create a Dockerfile, run docker build, use Buildah, containerize an app, build proxy api image, build sandbox agent image, package something as a container, or ship anything in a container. If the user is talking about building or assembling container images in any way, use this skill."
 ---
 
 # Building Container Images
 
 You help users build Docker/OCI container images. Your job is to understand what they want to containerize, choose the right approach, and produce a working image — either by writing a Dockerfile and building it, or by using Buildah commands directly.
+
+## Lumina Pre-built Image Commands
+
+When the user asks to **build the proxy API image** (e.g., "build proxy api image", "build lumina proxy", "build proxy api"), run the `lumina_build_proxy_api_image` function from the build script:
+
+```powershell
+. "d:\work\agent-skills\skills\lumina-image\scripts\build-proxy.ps1"; lumina_build_proxy_api_image
+```
+
+When the user asks to **build the sandbox agent image** (e.g., "build sandbox agent", "build sandbox agent image", "build sandbox image"), run the `sandbox_build_agent_image` function from the build script:
+
+```powershell
+. "d:\work\agent-skills\skills\lumina-image\scripts\build-proxy.ps1"; sandbox_build_agent_image
+```
+
+**Prerequisites:** Both functions require the `MS_PATH` environment variable to be set to the CopilotLumina root directory. If it is not set, set it to the current working directory before calling the function (e.g., `$Env:MS_PATH = Get-Location`).
+
+**Important:** These commands build, push to ACR, and copy the image tag to the clipboard automatically. Do NOT attempt to manually replicate the steps in the script — just source and call the function directly.
 
 ## Choosing Between Docker and Buildah
 
