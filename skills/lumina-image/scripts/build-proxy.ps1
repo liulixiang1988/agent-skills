@@ -4,7 +4,7 @@ function lumina_build_proxy_api_image() {
     }
 
     $uniqueId = Get-Date -Format "yyyyMMddHHmmss"
-    $dockerImageTag = "draft.azurecr.io/lixiangliu/lumina-proxy-api:${uniqueId}"
+    $dockerImageTag = "luminaacrdev.azurecr.io/lixiangliu/lumina-proxy-api:${uniqueId}"
     $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "CopilotLumina/sources/dev/LuminaService"
     $solutionPath = Join-Path -Path $projectRoot -ChildPath "LuminaService.sln"
     $pfxPath = Join-Path -Path $projectRoot -ChildPath "LuminaProxyAPI/lumina-dev-lumina-search-20250703.pfx"
@@ -44,7 +44,7 @@ function sandbox_build_agent_image() {
         throw "MS_PATH environment variable is not set. Set it to the CopilotLumina root."
     }
     $uniqueId = Get-Date -Format "yyyyMMddHHmmss"
-    $dockerImageTag = "draft.azurecr.io/lixiangliu/lumina-sandbox-agent:${uniqueId}"
+    $dockerImageTag = "luminaacrdev.azurecr.io/lixiangliu/lumina-sandbox-agent:${uniqueId}"
     $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "CopilotLumina/sources/dev/SandboxService"
     $dockerFile = Join-Path -Path $projectRoot -ChildPath "Docker/agent.Dockerfile"
     $dockerContext = $projectRoot
