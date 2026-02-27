@@ -23,6 +23,8 @@ When the user asks to **build the sandbox agent image** (e.g., "build sandbox ag
 
 **Prerequisites:** Both functions require the `MS_PATH` environment variable to be set to the CopilotLumina root directory. If it is not set, set it to the current working directory before calling the function (e.g., `$Env:MS_PATH = Get-Location`).
 
+**ACR Login:** Before pushing, ensure the user is logged into the ACR. If the docker push fails with an authentication error, run `az acr login -n luminaacrdev` to log in, then retry.
+
 **Important:** These commands build, push to ACR, and copy the image tag to the clipboard automatically. Do NOT attempt to manually replicate the steps in the script — just source and call the function directly.
 
 ## Choosing Between Docker and Buildah
