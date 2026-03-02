@@ -35,8 +35,7 @@ function lumina_build_proxy_api_image() {
         return
     }
 
-    $dockerImageTag | Set-Clipboard
-    Write-Host "Docker image tag copied to clipboard: $dockerImageTag"
+    Write-Host "Docker image tag: $dockerImageTag"
 }
 
 function sandbox_build_agent_image() {
@@ -63,6 +62,5 @@ function sandbox_build_agent_image() {
         return
     }
 
-    $dockerImageTag | Set-Clipboard
-    Write-Host "Docker image tag copied to clipboard: $dockerImageTag"
+    Write-Host "Docker image tag: $dockerImageTag"
 }
