@@ -12,16 +12,18 @@ You help users build Docker/OCI container images. Your job is to understand what
 When the user asks to **build the proxy API image** (e.g., "build proxy api image", "build lumina proxy", "build proxy api"), run the `lumina_build_proxy_api_image` function from the build script:
 
 ```powershell
-. "d:\work\agent-skills\skills\lumina-image\scripts\build-proxy.ps1"; lumina_build_proxy_api_image
+if (-not $Env:MS_PATH) { $Env:MS_PATH = Get-Location }
+. "$Env:MS_PATH/scripts/build-proxy.ps1"; lumina_build_proxy_api_image
 ```
 
 When the user asks to **build the sandbox agent image** (e.g., "build sandbox agent", "build sandbox agent image", "build sandbox image"), run the `sandbox_build_agent_image` function from the build script:
 
 ```powershell
-. "d:\work\agent-skills\skills\lumina-image\scripts\build-proxy.ps1"; sandbox_build_agent_image
+if (-not $Env:MS_PATH) { $Env:MS_PATH = Get-Location }
+. "$Env:MS_PATH/scripts/build-proxy.ps1"; sandbox_build_agent_image
 ```
 
-**Prerequisites:** Both functions require the `MS_PATH` environment variable to be set to the CopilotLumina root directory. If it is not set, set it to the current working directory before calling the function (e.g., `$Env:MS_PATH = Get-Location`).
+**Prerequisites:** Both functions require the `MS_PATH` environment variable to be set to the CopilotLumina root directory. If it is not set, the commands above will auto-detect it from the current working directory.
 
 **ACR Login:** Before pushing, ensure the user is logged into the ACR. If the docker push fails with an authentication error, run `az acr login -n luminaacrdev` to log in, then retry.
 
