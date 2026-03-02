@@ -13,7 +13,7 @@ sandbox_build_agent_image() {
   docker_image_tag="luminaacrdev.azurecr.io/lixiangliu/lumina-sandbox-agent:${unique_id}"
 
   local project_root
-  project_root="${MS_PATH}/CopilotLumina/sources/dev/SandboxService"
+  project_root="${MS_PATH}/sources/dev/SandboxService"
 
   local docker_file
   docker_file="${project_root}/Docker/agent.Dockerfile"
