@@ -13,7 +13,7 @@ When the user asks to build the proxy API image (e.g., "build proxy api image", 
 
 ```powershell
 if (-not $Env:MS_PATH) { $Env:MS_PATH = Get-Location }
-. "$Env:MS_PATH/scripts/build-proxy.ps1"; lumina_build_proxy_api_image
+. "<skill-path>/scripts/build-proxy.ps1"; lumina_build_proxy_api_image
 ```
 
 ## Build Sandbox Agent Image
@@ -22,13 +22,14 @@ When the user asks to build the sandbox agent image (e.g., "build sandbox agent"
 
 ```powershell
 if (-not $Env:MS_PATH) { $Env:MS_PATH = Get-Location }
-. "$Env:MS_PATH/scripts/build-proxy.ps1"; sandbox_build_agent_image
+. "<skill-path>/scripts/build-proxy.ps1"; sandbox_build_agent_image
 ```
 
 ## Prerequisites
 
 - **`MS_PATH`**: Must point to the CopilotLumina root directory. If not set, the commands above auto-detect it from the current working directory.
 - **ACR Login**: If a docker push fails with an authentication error, run `az acr login -n luminaacrdev` and retry.
+- **`<skill-path>`**: Replace with the actual path to the skill directory containing the `scripts` folder.
 
 ## Behavior
 
