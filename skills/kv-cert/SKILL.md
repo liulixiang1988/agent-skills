@@ -44,11 +44,18 @@ az rest --method PUT \
 
 ### Grant App Service WebApp SP access to KV
 
-App Service reads KV certs via the **Azure WebApp 1st-party Service Principal** (`abfa0a7c-a6b6-4736-8310-5855508787cd`), NOT the UAMI bound to the App Service. Grant it `Key Vault Certificate User` role:
+App Service reads KV certs via the **Azure WebApp 1st-party Service Principal** (Application ID: `abfa0a7c-a6b6-4736-8310-5855508787cd`, Display Name: `Microsoft Azure App Service`), NOT the UAMI bound to the App Service.
+
+> **CRITICAL: Application ID ≠ Object ID.** RBAC `principalId` must use Object ID, not Application ID. Using Application ID silently assigns to the wrong principal.
+
+Grant it `Key Vault Certificate User` + `Key Vault Secrets User` roles:
 
 ```bash
-azure_webapp_sp="abfa0a7c-a6b6-4736-8310-5855508787cd"
-# Use the REST API pattern above with roleDefinitionId db79e9a7-... and principalType ServicePrincipal
+azure_webapp_app_id="abfa0a7c-a6b6-4736-8310-5855508787cd"
+# Resolve Object ID (different per tenant — never hardcode)
+azure_webapp_sp_oid=$(az ad sp show --id "${azure_webapp_app_id}" --query id -o tsv)
+# Use the REST API pattern above with principalId="${azure_webapp_sp_oid}" and principalType ServicePrincipal
+# Roles needed: db79e9a7-... (Certificate User) + 4633458b-... (Secrets User)
 ```
 
 ## Common Queries
@@ -193,7 +200,7 @@ az webapp show --name <webapp> --resource-group <rg> \
 | `ForbiddenByConnection` | KV has public network access disabled — enable temporarily or use Private Endpoint/VPN |
 | `ForbiddenByRbac` | Missing RBAC role — grant via REST API (see above) |
 | CN not in SAN → domain invalid | Always include CN in SAN dnsNames; modern clients only check SAN |
-| App Service can't read KV cert | Grant `Key Vault Certificate User` to WebApp 1st-party SP (`abfa0a7c-...`), not UAMI |
+| App Service can't read KV cert | Grant `Key Vault Certificate User` + `Key Vault Secrets User` to WebApp 1st-party SP. Use **Object ID** (via `az ad sp show --id "abfa0a7c-..." --query id`), NOT Application ID |
 
 ## Network Access
 
