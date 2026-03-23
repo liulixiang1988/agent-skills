@@ -1,6 +1,6 @@
 ---
 name: lumina-image
-description: "Build Lumina container images. Use this skill when the user wants to build the proxy API image, build the sandbox agent image, or build any Lumina-specific Docker image (e.g., 'build proxy api image', 'build lumina proxy', 'build sandbox agent')."
+description: "Build Lumina container images. Use this skill when the user wants to build the proxy API image, build the SandboxControlPlane API image, build the sandbox agent image, or build any Lumina-specific Docker image (e.g., 'build proxy api image', 'build scp api image', 'build sandboxcontrolplane image', 'build sandbox agent')."
 ---
 
 # Lumina Image Build Commands
@@ -14,6 +14,15 @@ When the user asks to build the proxy API image (e.g., "build proxy api image", 
 ```powershell
 if (-not $Env:MS_PATH) { $Env:MS_PATH = Get-Location }
 . "<skill-path>/scripts/build-proxy.ps1"; lumina_build_proxy_api_image
+```
+
+## Build SandboxControlPlane API Image (Windows Only)
+
+When the user asks to build the SandboxControlPlane API image (e.g., "build scp api image", "build sandboxcontrolplane image", "build scp image", "build sandbox control plane api"):
+
+```powershell
+if (-not $Env:MS_PATH) { $Env:MS_PATH = Get-Location }
+. "<skill-path>/scripts/build-proxy.ps1"; lumina_build_scp_api_image
 ```
 
 ## Build Sandbox Agent Image
@@ -41,5 +50,6 @@ if [ -z "${MS_PATH:-}" ]; then export MS_PATH="$(pwd)"; fi
 ## Behavior
 
 - `lumina_build_proxy_api_image` remains Windows/PowerShell only.
+- `lumina_build_scp_api_image` is Windows/PowerShell only.
 - `sandbox_build_agent_image` now supports both Windows (PowerShell) and macOS/Linux (bash/zsh).
 - All commands build the image, push to ACR, and print the image tag.
