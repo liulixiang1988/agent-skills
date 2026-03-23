@@ -1,11 +1,11 @@
 function lumina_build_proxy_api_image() {
     if (-not $Env:MS_PATH) {
-        throw "MS_PATH environment variable is not set. Set it to the CopilotLumina root."
+        throw "MS_PATH environment variable is not set. Set it to the CopilotLumina repo root."
     }
 
     $uniqueId = Get-Date -Format "yyyyMMddHHmmss"
     $dockerImageTag = "luminaacrdev.azurecr.io/lixiangliu/lumina-proxy-api:${uniqueId}"
-    $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "CopilotLumina/sources/dev/LuminaService"
+    $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "sources/dev/LuminaService"
     $solutionPath = Join-Path -Path $projectRoot -ChildPath "LuminaService.sln"
     $pfxPath = Join-Path -Path $projectRoot -ChildPath "LuminaProxyAPI/lumina-dev-lumina-search-20250703.pfx"
     $dockerFile = Join-Path -Path $projectRoot -ChildPath "LuminaProxyAPI/DockerBuildConfigs/Dockerfile.local"
@@ -40,12 +40,12 @@ function lumina_build_proxy_api_image() {
 
 function lumina_build_scp_api_image() {
     if (-not $Env:MS_PATH) {
-        throw "MS_PATH environment variable is not set. Set it to the CopilotLumina root."
+        throw "MS_PATH environment variable is not set. Set it to the CopilotLumina repo root."
     }
 
     $uniqueId = Get-Date -Format "yyyyMMddHHmmss"
     $dockerImageTag = "luminaacrdev.azurecr.io/lixiangliu/lumina-scp-api:${uniqueId}"
-    $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "CopilotLumina/sources/dev/LuminaService"
+    $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "sources/dev/LuminaService"
     $projectPath = Join-Path -Path $projectRoot -ChildPath "SandboxControlPlane/SandboxControlPlane.csproj"
     $dockerFile = Join-Path -Path $projectRoot -ChildPath "SandboxControlPlane/DockerBuildConfigs/Dockerfile.local"
     $dockerContext = Join-Path -Path $projectRoot -ChildPath "SandboxControlPlane"
@@ -76,11 +76,11 @@ function lumina_build_scp_api_image() {
 
 function sandbox_build_agent_image() {
     if (-not $Env:MS_PATH) {
-        throw "MS_PATH environment variable is not set. Set it to the CopilotLumina root."
+        throw "MS_PATH environment variable is not set. Set it to the CopilotLumina repo root."
     }
     $uniqueId = Get-Date -Format "yyyyMMddHHmmss"
     $dockerImageTag = "luminaacrdev.azurecr.io/lixiangliu/lumina-sandbox-agent:${uniqueId}"
-    $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "CopilotLumina/sources/dev/SandboxService"
+    $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "sources/dev/SandboxService"
     $dockerFile = Join-Path -Path $projectRoot -ChildPath "Docker/agent.Dockerfile"
     $dockerContext = $projectRoot
 
