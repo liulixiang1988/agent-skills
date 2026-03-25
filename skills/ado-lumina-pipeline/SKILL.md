@@ -19,7 +19,7 @@ Trigger the **Lumina-SandboxAKSProvider-Service-Dev-Deploy** pipeline via Azure 
 
 ## Quick Start — PowerShell Script
 
-The helper script is at `D:\work\agent-skills\skills\ado-lumina-pipeline\scripts\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1`.
+The helper script is at `scripts/Invoke-LuminaSandboxAKSProviderDevDeploy.ps1` (relative to this skill's directory).
 
 ```powershell
 # Deploy only (no image builds)
