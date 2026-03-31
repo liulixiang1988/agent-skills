@@ -5,7 +5,7 @@ description: "Trigger the Lumina-SandboxAKSProvider-Service-Dev-Deploy pipeline 
 
 # Lumina Sandbox AKS Provider - Dev Deploy Pipeline
 
-Trigger the **Lumina-SandboxAKSProvider-Service-Dev-Deploy** pipeline via Azure CLI or the PowerShell helper script.
+Trigger the **Lumina-SandboxAKSProvider-Service-Dev-Deploy** pipeline via Azure CLI or the PowerShell helper script for CopilotLumina.
 
 ## Pipeline Info
 
