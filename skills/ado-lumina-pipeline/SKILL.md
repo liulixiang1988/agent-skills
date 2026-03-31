@@ -15,18 +15,18 @@ Trigger the **Lumina-SandboxAKSProvider-Service-Dev-Deploy** pipeline via Azure 
 | **Project** | `O365 Core` |
 | **Pipeline Name** | `Lumina-SandboxAKSProvider-Service-Dev-Deploy` |
 | **Pipeline ID** | `53278` |
-| **Default Region** | `westus3` |
+| **Default Region** | `westus2` |
 
 ## Quick Start — PowerShell Script
 
 The helper script is at `scripts/Invoke-LuminaSandboxAKSProviderDevDeploy.ps1` (relative to this skill's directory).
 
 ```powershell
-# Deploy only (no image builds)
+# Deploy with default builds (orchestrator + otel collector), upstream branch, westus2
 .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "a-1"
 
-# Build specific components
-.\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "g-2" -Region "westus2" -Branch "u/lixiangliu/my-feature" -BuildOrchestrator -BuildOtelCollector
+# Also build control plane and skills agent
+.\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "g-2" -BuildControlPlane $true -BuildSkillsAgent $true
 
 # Build all components
 .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "b-2" -BuildAll
@@ -62,12 +62,12 @@ az pipelines run \
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `region` | `westus3` | Deployment region. |
-| Branch (`--branch`) | current branch | Git branch to run the pipeline on. |
+| `region` | `westus2` | Deployment region. |
+| Branch (`--branch`) | upstream tracking branch | Git branch to run the pipeline on. Defaults to the upstream tracking branch of the current local branch (via `git rev-parse --abbrev-ref @{upstream}`). |
 
 ### Build Flags
 
-All default to `False`. Set to `true` to build that component's container image.
+All default to `False` except **Orchestrator** and **OTel Collector** which default to `True`. Set to `true`/`false` to toggle building that component's container image.
 
 | Pipeline Parameter | PowerShell Switch | Component |
 |--------------------|-------------------|-----------|

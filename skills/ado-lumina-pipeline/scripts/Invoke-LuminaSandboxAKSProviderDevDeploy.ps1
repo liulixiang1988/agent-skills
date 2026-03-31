@@ -9,16 +9,16 @@
     Pipeline: Lumina-SandboxAKSProvider-Service-Dev-Deploy
 
 .EXAMPLE
-    # Deploy with profile a-1, build control plane and terminal shell
-    .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "a-1" -BuildControlPlane -BuildTerminalShell
+    # Deploy with profile a-1 (all components built by default, branch from upstream)
+    .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "a-1"
 
 .EXAMPLE
-    # Deploy with profile b-2, build all sandbox images
-    .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "b-2" -BuildAll
+    # Deploy with profile b-2, skip building control plane and terminal shell
+    .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "b-2" -BuildControlPlane $false -BuildTerminalShell $false
 
 .EXAMPLE
     # Deploy with a custom branch
-    .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "a-1" -Branch "u/lixiangliu/my-feature" -BuildSkillsAgent
+    .\Invoke-LuminaSandboxAKSProviderDevDeploy.ps1 -Profile "a-1" -Branch "u/lixiangliu/my-feature"
 #>
 
 [CmdletBinding()]
@@ -35,25 +35,25 @@ param(
     )]
     [string]$Profile,
 
-    [string]$Branch = "u/lixiangliu/add-aks-provider-dev-deploy",
+    [string]$Branch,
 
-    [string]$Region = "westus3",
+    [string]$Region = "westus2",
 
-    # --- Build flags ---
-    [switch]$BuildServiceApi,
-    [switch]$BuildProxyApi,
-    [switch]$BuildControlPlane,
-    [switch]$BuildControllerMain,
-    [switch]$BuildOperator,
-    [switch]$BuildTerminalShell,
-    [switch]$BuildDesktopBrowser,
-    [switch]$BuildDesktopLibreOffice,
-    [switch]$BuildSkillsAgent,
-    [switch]$BuildEgressProxy,
-    [switch]$BuildEgressLlm,
-    [switch]$BuildOtelCollector,
-    [switch]$BuildOrchestrator,
-    [switch]$BuildWorkspaceManager,
+    # --- Build flags (orchestrator and otel collector default to true) ---
+    [bool]$BuildServiceApi = $false,
+    [bool]$BuildProxyApi = $false,
+    [bool]$BuildControlPlane = $false,
+    [bool]$BuildControllerMain = $false,
+    [bool]$BuildOperator = $false,
+    [bool]$BuildTerminalShell = $false,
+    [bool]$BuildDesktopBrowser = $false,
+    [bool]$BuildDesktopLibreOffice = $false,
+    [bool]$BuildSkillsAgent = $false,
+    [bool]$BuildEgressProxy = $false,
+    [bool]$BuildEgressLlm = $false,
+    [bool]$BuildOtelCollector = $true,
+    [bool]$BuildOrchestrator = $true,
+    [bool]$BuildWorkspaceManager = $false,
 
     # --- BYO image overrides ---
     [string]$ByoServiceApiImage = "none",
@@ -63,6 +63,19 @@ param(
     # --- Convenience ---
     [switch]$BuildAll
 )
+
+# ── Resolve branch from upstream tracking if not specified ──
+if (-not $Branch) {
+    try {
+        $Branch = git rev-parse --abbrev-ref '@{upstream}' 2>$null
+        if (-not $Branch) { throw "no upstream" }
+        # Strip remote prefix (e.g. "origin/u/user/feature" -> "u/user/feature")
+        $Branch = $Branch -replace '^[^/]+/', ''
+    } catch {
+        Write-Host "❌ No branch specified and no upstream tracking branch found. Use -Branch to specify." -ForegroundColor Red
+        exit 1
+    }
+}
 
 # ── Constants ──
 $Org     = "https://dev.azure.com/O365exchange"
