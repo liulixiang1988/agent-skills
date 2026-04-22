@@ -99,6 +99,12 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://lumina-sandbox-broker-dev-west
 # with x-ms-lumina-target-host / x-ms-lumina-sandbox-broker-token / x-ms-lumina-x5c.
 python "$CLAUDE_SKILL_DIR/probe_broker_auth.py"
 
+# Extended auth regression matrix — 14 scenarios (happy path, missing headers,
+# claim mismatches, expired/nbf-future, tampered sig/claims, unknown kid,
+# orchestrator RBAC). Imports probe_broker_auth.py as a module. Expect 14/14.
+# Needs PYTHONIOENCODING=utf-8 on Windows consoles (cp1252 can't encode arrows).
+PYTHONIOENCODING=utf-8 python "$CLAUDE_SKILL_DIR/broker_auth_matrix.py"
+
 # Pull platform / container logs when deploy succeeds but URL returns holding page
 az webapp log download --resource-group LuminaBroker --name lumina-sandbox-broker-dev-westus2 --log-file logs.zip
 
@@ -127,6 +133,7 @@ Loop exits (and the cron job should be deleted with `CronDelete`) when all of th
 2. Latest deploy of 54444 is `succeeded`.
 3. `curl https://lumina-sandbox-broker-dev-westus2.azurewebsites.net/` returns a non-holding-page response (status code from the app itself, e.g. 401/200/404 from YARP — NOT the 202 "App Service Container" HTML page).
 4. `python probe_broker_auth.py` (in this skill dir) returns HTTP 200 "Healthy" — this exercises the full auth path: x5c chain parse, root CA cache lookup (`PEM` field), subject allowlist from the `LUMINA_CONFIG_SUFFIX` overlay, JWT signature + issuer/audience check, then YARP forward to `/healthz/ready`. If (3) is green but (4) fails with 401/403, the broker is serving traffic but auth config is broken — debug `X5cChainValidator`, `RootCACertCache`, or the overlay `ValidSubjectNames` rather than the platform.
+5. (Optional, for auth-touching changes) `PYTHONIOENCODING=utf-8 python broker_auth_matrix.py` reports 14/14 passed. This covers negative paths (missing headers, expired/nbf-future tokens, tampered sig/claims, unknown kid, wrong aud/iss, orchestrator RBAC) so a regression that accidentally accepts invalid auth is caught. Run whenever touching `X5cChainValidator`, `RootCACertCache`, token validation, or the overlay `ValidSubjectNames`.
 
 ## Notes
 
