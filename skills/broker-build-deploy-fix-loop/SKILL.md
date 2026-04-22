@@ -38,8 +38,9 @@ Tell the user the job ID and that recurring tasks auto-expire after 7 days. The 
 | Deploy pipeline (test) | (separate; see README) |
 | Branch (push target) | `u/lixiangliu/broker-pipeline` — repo policy rejects `marsiwe/*` refs, so push worktree branch to this namespace with `git push origin HEAD:refs/heads/u/lixiangliu/broker-pipeline` |
 | Image tag format | `mcr.microsoft.com/luminasandboxservice/sandbox-broker:<build.number>-windows` |
-| Dev App Service | `lumina-sandbox-broker-dev` (westus2) |
-| Dev App Service URL | `https://lumina-sandbox-broker-dev.azurewebsites.net/` |
+| Dev App Service | `lumina-sandbox-broker-dev-westus2` (westus2) |
+| Dev App Service URL | `https://lumina-sandbox-broker-dev-westus2.azurewebsites.net/` |
+| Dev auth probe cert | Key Vault `lumina-dev` (subscription `e75c95f3-27b4-410f-a40e-2b9153a807dd`, RG `browser-tools`), secret `SelfSignedToken` — OneCertV2 leaf `CN=lumina.dev.azclient.ms` chained to CCME. Used by `probe_broker_auth.py` to mint x5c+token. |
 | Resource Group | `LuminaBroker` (westus2) |
 | ServiceTreeId | `b45dd1cf-bd2f-470b-a4fa-5f46dd07a3af` |
 | Ev2 Service Connection (dev) | `LuminaSandbox-CORP-EV2-ServiceConnection` (Ev2Endpoint, bypasses Lockbox) |
@@ -85,11 +86,19 @@ az pipelines run --org https://dev.azure.com/o365exchange --project "O365 Core" 
   --parameters dockerImage=mcr.microsoft.com/luminasandboxservice/sandbox-broker:<build-number>-windows \
   --query "{id:id,status:status}" -o json
 
-# Validate HTTP
-curl -sS -o /dev/null -w "%{http_code}\n" https://lumina-sandbox-broker-dev.azurewebsites.net/
+# Validate HTTP (anonymous — expect 401 from the broker's auth handler)
+curl -sS -o /dev/null -w "%{http_code}\n" https://lumina-sandbox-broker-dev-westus2.azurewebsites.net/
+
+# Authenticated x5c+token probe — expect HTTP 200 "Healthy"
+# Mints a JWT from the dev SelfSignedToken Key Vault cert and calls /healthz/ready
+# with x-ms-lumina-target-host / x-ms-lumina-sandbox-broker-token / x-ms-lumina-x5c.
+python "$CLAUDE_SKILL_DIR/probe_broker_auth.py"
 
 # Pull platform / container logs when deploy succeeds but URL returns holding page
-az webapp log download --resource-group LuminaBroker --name lumina-sandbox-broker-dev --log-file logs.zip
+az webapp log download --resource-group LuminaBroker --name lumina-sandbox-broker-dev-westus2 --log-file logs.zip
+
+# Stream container stdout/stderr live (captures dotnet output after the entrypoint fix)
+az webapp log tail --resource-group LuminaBroker --name lumina-sandbox-broker-dev-westus2
 ```
 
 ## Known failure modes & fixes (for the "fix" phase)
@@ -103,13 +112,16 @@ az webapp log download --resource-group LuminaBroker --name lumina-sandbox-broke
 | Deploy: ARM `windowsFxVersion: "DOCKER|"` error | Empty `dockerImage` parameter | Always pass `dockerImage=<full-tag>` to pipeline 54444. |
 | Public URL returns 202 "App Service Container" holding page forever | Container has no exposed port → App Service treats as background worker | `EXPOSE 8080` in Dockerfile + `WEBSITES_PORT=8080` app setting in ARM template. |
 | Container entrypoint exits ~30s after start | `CONFIG_PATH=appsettings.dev.json` doesn't exist in image | Dockerfile must set `CONFIG_PATH=appsettings.json` and `SECRETS_PATH=appsecrets.json`. |
+| After deploy: HTTP 502 even though dotnet started and served 1–2 requests | Entrypoint.ps1 was redirecting dotnet stdout/stderr to SMB-mounted `C:\home\LogFiles`; transient share I/O errors killed PowerShell+dotnet, and the old `while($true) Sleep` loop kept the container alive with nothing on port 8080 | Entrypoint.ps1 must (a) NOT pipe dotnet streams to `$logFile` and (b) wrap dotnet in a relaunch loop so a crash re-binds 8080. See commit `3812383f1`. |
+| Authenticated probe returns 401 "x5c certificate chain validation failed" or "Subject does not match" | New dev/test CN not in `ValidSubjectNames`, or `RootCACertCache` reading wrong JSON field | Add CN to `appsettings.{env-region}.json` overlay (loaded via `LUMINA_CONFIG_SUFFIX` env var). Verify `RootCACertCache` reads `PEM` field from `https://issuer.pki.azure.com/dsms/issuercertificates?getissuersv3&cloudName=public&appType=clientauth` (NOT `Certificate`). |
 
 ## Success criteria
 
 Loop exits (and the cron job should be deleted with `CronDelete`) when all of the following hold:
 1. Latest build of 54428 on the target branch is `succeeded`.
 2. Latest deploy of 54444 is `succeeded`.
-3. `curl https://lumina-sandbox-broker-dev.azurewebsites.net/` returns a non-holding-page response (status code from the app itself, e.g. 401/200/404 from YARP — NOT the 202 "App Service Container" HTML page).
+3. `curl https://lumina-sandbox-broker-dev-westus2.azurewebsites.net/` returns a non-holding-page response (status code from the app itself, e.g. 401/200/404 from YARP — NOT the 202 "App Service Container" HTML page).
+4. `python probe_broker_auth.py` (in this skill dir) returns HTTP 200 "Healthy" — this exercises the full auth path: x5c chain parse, root CA cache lookup (`PEM` field), subject allowlist from the `LUMINA_CONFIG_SUFFIX` overlay, JWT signature + issuer/audience check, then YARP forward to `/healthz/ready`. If (3) is green but (4) fails with 401/403, the broker is serving traffic but auth config is broken — debug `X5cChainValidator`, `RootCACertCache`, or the overlay `ValidSubjectNames` rather than the platform.
 
 ## Notes
 
