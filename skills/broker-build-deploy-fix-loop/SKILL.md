@@ -27,10 +27,10 @@ Tell the user the job ID and that recurring tasks auto-expire after 7 days. The 
 5. If any step failed → read logs, diagnose root cause, edit files, commit, push.
 6. If everything is healthy → delete the cron job and report success.
 
-**Deploy success requires BOTH jobs green, not just `ReleaseJob_AgentRolloutJob`.** Ev2 deploys have a separate `ReleaseJob_Monitoring` job that runs post-rollout validation; its failures do NOT always cause the rollout job itself to fail. Before declaring a deploy successful, always:
+**Deploy success requires BOTH jobs checked — not just `ReleaseJob_AgentRolloutJob`.** Ev2 deploys have a separate `ReleaseJob_Monitoring` job that runs post-rollout validation; it can have already failed while the overall state still shows `inProgress`. Do NOT wait for Monitoring to reach `completed` — inspect its log while it is running. Per deploy-check iteration:
 1. Confirm `ReleaseJob_AgentRolloutJob` = succeeded via `get_build_timeline`.
-2. Open the `ReleaseJob_Monitoring` job log and verify no errors/failures are present.
-Skipping step 2 has previously caused false "deploy succeeded" conclusions.
+2. Open the `ReleaseJob_Monitoring` / `Ev2Agentless` task log NOW (even while `inProgress`) and scan for error / failure lines. If errors are present, treat the deploy as failed immediately — do not keep waiting.
+Skipping step 2, or waiting for Monitoring to "finish" before looking, has previously caused false "deploy succeeded" conclusions and wasted loop cycles.
 
 ## Pipelines & resources
 
