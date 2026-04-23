@@ -86,11 +86,20 @@ az pipelines build show --org https://dev.azure.com/o365exchange --project "O365
   --id <build-id> --query "{status:status,result:result,buildNumber:buildNumber}" -o json
 
 # Queue dev deploy (dockerImage REQUIRED — empty value → windowsFxVersion "DOCKER|" → ARM failure)
-# Always pass enableSlotSwap=true to use deployment slot swap for zero-downtime deploys.
-az pipelines run --org https://dev.azure.com/o365exchange --project "O365 Core" \
-  --id 54444 --branch u/lixiangliu/broker-pipeline \
-  --parameters "dockerImage=mcr.microsoft.com/luminasandboxservice/sandbox-broker:<build-number>-windows enableSlotSwap=true" \
-  --query "{id:id,status:status}" -o json
+# Always pass enableSlotSwap=true for zero-downtime deploys.
+# NOTE: `az pipelines run --parameters` concatenates all values into one string,
+# corrupting the docker image tag. Use the REST API with templateParameters instead.
+TOKEN=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)
+curl -sS -X POST "https://dev.azure.com/o365exchange/O365%20Core/_apis/build/builds?api-version=7.1" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "definition":{"id":54444},
+    "sourceBranch":"refs/heads/u/lixiangliu/broker-pipeline",
+    "templateParameters":{
+      "dockerImage":"mcr.microsoft.com/luminasandboxservice/sandbox-broker:<build-number>-windows",
+      "enableSlotSwap":"true"
+    }
+  }'
 
 # Validate HTTP (anonymous — expect 401 from the broker's auth handler)
 curl -sS -o /dev/null -w "%{http_code}\n" https://lumina-sandbox-broker-dev-westus2.azurewebsites.net/
