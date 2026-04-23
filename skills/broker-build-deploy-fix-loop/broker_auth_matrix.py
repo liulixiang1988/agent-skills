@@ -16,19 +16,19 @@ spec = importlib.util.spec_from_file_location("probe", SKILL)
 probe = importlib.util.module_from_spec(spec); spec.loader.exec_module(probe)
 
 BROKER_ROOT = probe.PROXY_ROOT_URL
-BING = "www.bing.com"
+BING_URI = "https://www.bing.com/"
 
 pfx = probe.download_pfx()
 key, chain, thumbprint, x5c = probe.load_chain(pfx)
 print(f"[info] leaf kid = {thumbprint}\n")
 
 results = []
-def run(label, code_expected, *, target=BING, token="__default__", x5c_header="__default__", url=BROKER_ROOT):
+def run(label, code_expected, *, target_uri=BING_URI, token="__default__", x5c_header="__default__", url=BROKER_ROOT):
     if token == "__default__":
         token = probe.mint_token(key, thumbprint)
     if x5c_header == "__default__":
         x5c_header = x5c
-    code, body = probe.call(url, target, token=token, x5c=x5c_header)
+    code, body = probe.call(url, target_uri, token=token, x5c=x5c_header)
     ok = code == code_expected if isinstance(code_expected, int) else code_expected(code, body)
     marker = "PASS" if ok else "FAIL"
     snippet = body.strip().splitlines()[0][:80] if body else ""
@@ -37,15 +37,15 @@ def run(label, code_expected, *, target=BING, token="__default__", x5c_header="_
 
 print("=== Happy path ===")
 run("baseline: valid token + x5c -> proxy 200", 200)
-run("liveness /healthz/ready (no headers)", 200, target=None, token=None, x5c_header=None,
+run("liveness /healthz/ready (no headers)", 200, target_uri=None, token=None, x5c_header=None,
     url=probe.LIVENESS_URL)
 
 print("\n=== Missing headers ===")
 run("no token, no x5c", 401, token=None, x5c_header=None)
 run("no token, x5c present", 401, token=None)
 run("token present, no x5c (cache hit expected)", 200)
-run("no target-host header", 401,
-    target=None)
+run("no target-uri header", 401,
+    target_uri=None)
 
 print("\n=== Token claim mismatches ===")
 run("wrong audience", 401, token=probe.mint_token(key, thumbprint, audience="WrongAud"))
@@ -86,6 +86,7 @@ run("unknown kid in header, no x5c", 401,
     token=probe.mint_token(key, unknown_kid), x5c_header=None)
 
 print("\n=== Path / proxy variants ===")
+orch_target_uri = f"https://{probe.ORCH_HOST}/sandbox-orchestrator"
 def orch_rbac(code, body):
     if code == 403:
         return True
@@ -93,7 +94,7 @@ def orch_rbac(code, body):
         return True
     return False
 run("orchestrator upstream (broker auth OK, RBAC at orch)", orch_rbac,
-    target=probe.ORCH_HOST, url=probe.ORCH_URL)
+    target_uri=orch_target_uri, url=probe.PROXY_ROOT_URL)
 
 print("\n=== Summary ===")
 for label, code, marker, snippet in results:

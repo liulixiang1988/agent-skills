@@ -106,7 +106,7 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://lumina-sandbox-broker-dev-west
 
 # Authenticated x5c+token probe — expect HTTP 200 "Healthy"
 # Mints a JWT from the dev SelfSignedToken Key Vault cert and calls /healthz/ready
-# with x-ms-lumina-target-host / x-ms-lumina-sandbox-broker-token / x-ms-lumina-x5c.
+# with x-ms-lumina-sandbox-target-uri / x-ms-lumina-sandbox-broker-token / x-ms-lumina-sandbox-broker-token-x5c.
 python "$CLAUDE_SKILL_DIR/probe_broker_auth.py"
 
 # Extended auth regression matrix — 14 scenarios (happy path, missing headers,

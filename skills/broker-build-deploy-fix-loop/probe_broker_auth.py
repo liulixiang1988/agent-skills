@@ -3,9 +3,9 @@
 Used by the broker-build-deploy-fix-loop skill as the final validation step.
 
 Target paths:
-  /                — goes through YARP; RequestTransformer rewrites upstream to
-                     https://{target-host}{path}. Exercises full auth handler +
-                     proxy pipeline.
+  /                — goes through YARP; RequestTransformer uses the full URI
+                     from x-ms-lumina-sandbox-target-uri as the upstream URL.
+                     Exercises full auth handler + proxy pipeline.
   /healthz/ready   — bypasses auth (registered before UseRouting). Only useful
                      as a liveness probe, not an auth check.
 
@@ -16,10 +16,10 @@ Prereqs:
 
 Checks:
   1. liveness                      /healthz/ready                      → 200 Healthy
-  2. bing upstream (happy path)    target=www.bing.com,  path=/        → 200 (bing HTML)
-  3. cache hit (same kid, no x5c)  target=www.bing.com,  path=/        → 200
-  4. orchestrator upstream         target=luminasandboxorchestrator…   → non-401 (RBAC denied from orch, e.g. 403)
-  5. missing token                 target=www.bing.com                 → 401 (broker auth)
+  2. bing upstream (happy path)    target-uri=https://www.bing.com/    → 200 (bing HTML)
+  3. cache hit (same kid, no x5c)  target-uri=https://www.bing.com/    → 200
+  4. orchestrator upstream         target-uri=https://luminasandbox…   → non-401 (RBAC denied from orch, e.g. 403)
+  5. missing token                 target-uri=https://www.bing.com/    → 401 (broker auth)
   6. wrong audience                                                    → 401
   7. wrong issuer                                                      → 401
 
@@ -51,6 +51,10 @@ ORCH_HOST = "luminasandboxorchestrator-g-2.luminadevaksprovider-westus2.dev.copi
 ORCH_URL = f"https://{BROKER}/sandbox-orchestrator"
 ISSUER = "Lumina"
 AUDIENCE = "SandboxService"
+
+TARGET_URI_HEADER = "x-ms-lumina-sandbox-target-uri"
+TOKEN_HEADER = "x-ms-lumina-sandbox-broker-token"
+X5C_HEADER = "x-ms-lumina-sandbox-broker-token-x5c"
 
 
 def download_pfx() -> bytes:
@@ -104,15 +108,15 @@ def mint_token(key, thumbprint: str, *, issuer: str = ISSUER, audience: str = AU
     return signing_input + "." + b64url(sig)
 
 
-def call(url: str, target_host: str | None, *, token: str | None = None,
+def call(url: str, target_uri: str | None, *, token: str | None = None,
          x5c: str | None = None) -> tuple[int, str]:
     req = urllib.request.Request(url, method="GET")
-    if target_host is not None:
-        req.add_header("x-ms-lumina-target-host", target_host)
+    if target_uri is not None:
+        req.add_header(TARGET_URI_HEADER, target_uri)
     if token is not None:
-        req.add_header("x-ms-lumina-sandbox-broker-token", token)
+        req.add_header(TOKEN_HEADER, token)
     if x5c is not None:
-        req.add_header("x-ms-lumina-x5c", x5c)
+        req.add_header(X5C_HEADER, x5c)
     try:
         with urllib.request.urlopen(req, context=ssl.create_default_context(), timeout=30) as resp:
             return resp.status, resp.read()[:500].decode(errors="replace")
@@ -150,19 +154,18 @@ def main() -> int:
 
     # 2) Bing upstream — happy path through auth + YARP
     token = mint_token(key, thumbprint)
-    code, body = call(PROXY_ROOT_URL, "www.bing.com", token=token, x5c=x5c)
+    code, body = call(PROXY_ROOT_URL, "https://www.bing.com/", token=token, x5c=x5c)
     results.append(check("bing upstream (auth+proxy)", eq(200), code, body))
 
     # 3) Cache hit: same kid, omit x5c
     token2 = mint_token(key, thumbprint)
-    code, body = call(PROXY_ROOT_URL, "www.bing.com", token=token2)
+    code, body = call(PROXY_ROOT_URL, "https://www.bing.com/", token=token2)
     results.append(check("cache hit (same kid, no x5c)", eq(200), code, body))
 
     # 4) Orchestrator upstream — auth passes broker, orch returns RBAC denied
     token3 = mint_token(key, thumbprint)
-    code, body = call(ORCH_URL, ORCH_HOST, token=token3, x5c=x5c)
-    # Expect broker auth to succeed (not 401). Orch usually returns 401/403 with
-    # "RBAC: access denied" body. Accept any non-401 OR 401-with-RBAC-body.
+    orch_target_uri = f"https://{ORCH_HOST}/sandbox-orchestrator"
+    code, body = call(PROXY_ROOT_URL, orch_target_uri, token=token3, x5c=x5c)
     def orch_ok(c):
         if c == 401 and "rbac" in body.lower():
             return True
@@ -170,17 +173,17 @@ def main() -> int:
     results.append(check("orchestrator upstream (RBAC expected)", orch_ok, code, body))
 
     # 5) Missing token → 401 from broker
-    code, body = call(PROXY_ROOT_URL, "www.bing.com")
+    code, body = call(PROXY_ROOT_URL, "https://www.bing.com/")
     results.append(check("missing token", eq(401), code, body))
 
     # 6) Wrong audience → 401
     bad_aud = mint_token(key, thumbprint, audience="WrongAudience")
-    code, body = call(PROXY_ROOT_URL, "www.bing.com", token=bad_aud, x5c=x5c)
+    code, body = call(PROXY_ROOT_URL, "https://www.bing.com/", token=bad_aud, x5c=x5c)
     results.append(check("wrong audience", eq(401), code, body))
 
     # 7) Wrong issuer → 401
     bad_iss = mint_token(key, thumbprint, issuer="WrongIssuer")
-    code, body = call(PROXY_ROOT_URL, "www.bing.com", token=bad_iss, x5c=x5c)
+    code, body = call(PROXY_ROOT_URL, "https://www.bing.com/", token=bad_iss, x5c=x5c)
     results.append(check("wrong issuer", eq(401), code, body))
 
     passed = sum(1 for r in results if r)
