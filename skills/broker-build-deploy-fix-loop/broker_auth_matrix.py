@@ -2,7 +2,7 @@
 
 Imports helpers from the probe skill but adds more scenarios:
   headers-only negatives, expired/future tokens, tampered signature,
-  unknown kid, HTTP POST, and baseline happy path.
+  unknown kid, and baseline happy path.
 """
 import importlib.util
 import pathlib
@@ -29,7 +29,7 @@ def run(label, code_expected, *, target=BING, token="__default__", x5c_header="_
     if x5c_header == "__default__":
         x5c_header = x5c
     code, body = probe.call(url, target, token=token, x5c=x5c_header)
-    ok = code == code_expected if isinstance(code_expected, int) else code_expected(code)
+    ok = code == code_expected if isinstance(code_expected, int) else code_expected(code, body)
     marker = "PASS" if ok else "FAIL"
     snippet = body.strip().splitlines()[0][:80] if body else ""
     results.append((label, code, marker, snippet))
@@ -43,8 +43,8 @@ run("liveness /healthz/ready (no headers)", 200, target=None, token=None, x5c_he
 print("\n=== Missing headers ===")
 run("no token, no x5c", 401, token=None, x5c_header=None)
 run("no token, x5c present", 401, token=None)
-run("token present, no x5c (cold cache expected)", lambda c: c in (200, 401))
-run("no target-host header", lambda c: c in (400, 401, 404, 502),
+run("token present, no x5c (cache hit expected)", 200)
+run("no target-host header", 401,
     target=None)
 
 print("\n=== Token claim mismatches ===")
@@ -86,8 +86,13 @@ run("unknown kid in header, no x5c", 401,
     token=probe.mint_token(key, unknown_kid), x5c_header=None)
 
 print("\n=== Path / proxy variants ===")
-run("orchestrator upstream (broker auth OK, RBAC at orch)",
-    lambda c: c != 401 or "rbac" in (results[-1] if False else "").lower() or c == 403,
+def orch_rbac(code, body):
+    if code == 403:
+        return True
+    if code == 401 and "rbac" in body.lower():
+        return True
+    return False
+run("orchestrator upstream (broker auth OK, RBAC at orch)", orch_rbac,
     target=probe.ORCH_HOST, url=probe.ORCH_URL)
 
 print("\n=== Summary ===")
