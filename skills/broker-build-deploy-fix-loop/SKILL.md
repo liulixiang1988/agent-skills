@@ -27,10 +27,14 @@ Tell the user the job ID and that recurring tasks auto-expire after 7 days. The 
 5. If any step failed → read logs, diagnose root cause, edit files, commit, push.
 6. If everything is healthy → delete the cron job and report success.
 
-**Deploy success requires BOTH jobs checked — not just `ReleaseJob_AgentRolloutJob`.** Ev2 deploys have a separate `ReleaseJob_Monitoring` job that runs post-rollout validation; it can have already failed while the overall state still shows `inProgress`. Do NOT wait for Monitoring to reach `completed` — inspect its log while it is running. Per deploy-check iteration:
+**Deploy success requires BOTH jobs checked — not just `ReleaseJob_AgentRolloutJob`.** Ev2 deploys have a separate `ReleaseJob_Monitoring` job that runs post-rollout validation; it can have already failed while the overall state still shows `inProgress`. Per deploy-check iteration:
 1. Confirm `ReleaseJob_AgentRolloutJob` = succeeded via `get_build_timeline`.
-2. Open the `ReleaseJob_Monitoring` / `Ev2Agentless` task log NOW (even while `inProgress`) and scan for error / failure lines. If errors are present, treat the deploy as failed immediately — do not keep waiting.
-Skipping step 2, or waiting for Monitoring to "finish" before looking, has previously caused false "deploy succeeded" conclusions and wasted loop cycles.
+2. Open the `ReleaseJob_Monitoring` / `Ev2Agentless` task log NOW (even while `inProgress`) and scan for error / failure lines.
+   - **If errors are present** → treat the deploy as **failed immediately** — do not keep waiting.
+   - **If the log is clean (no errors)** → this does NOT mean the deploy succeeded. It only means no failure yet. You MUST wait for the overall deploy build to reach `status: completed, result: succeeded` before proceeding to HTTP validation. Do NOT validate the endpoint early based on a clean Monitoring log — the Ev2 rollout (including slot swap, health checks, etc.) may still be in progress.
+3. Only after the deploy build shows `completed` + `succeeded`, proceed to HTTP validation and auth probes.
+
+Previously, treating "Monitoring log clean" as "deploy succeeded" caused premature validation — the endpoint happened to work because the previous deployment was still live, masking potential issues with the new rollout.
 
 ## Pipelines & resources
 
