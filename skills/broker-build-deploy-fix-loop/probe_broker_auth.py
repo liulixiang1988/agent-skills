@@ -50,7 +50,7 @@ PROXY_ROOT_URL = f"https://{BROKER}/"
 ORCH_HOST = "luminasandboxorchestrator-g-2.luminadevaksprovider-westus2.dev.copilotlumina.com"
 ORCH_URL = f"https://{BROKER}/sandbox-orchestrator"
 ISSUER = "Lumina"
-AUDIENCE = "SandboxService"
+AUDIENCE = "SandboxBroker"
 
 TARGET_URI_HEADER = "x-ms-lumina-sandbox-target-uri"
 TOKEN_HEADER = "x-ms-lumina-sandbox-broker-token"

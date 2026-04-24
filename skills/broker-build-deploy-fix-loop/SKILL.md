@@ -45,7 +45,7 @@ Previously, treating "Monitoring log clean" as "deploy succeeded" caused prematu
 | Build pipeline | `54428` — `Lumina-SandboxBroker-Service-Build-Official` |
 | Deploy pipeline (dev) | `54444` — `Lumina-SandboxBroker-Service-Dev-Deploy` |
 | Deploy pipeline (test) | (separate; see README) |
-| Branch (push target) | `u/lixiangliu/broker-pipeline` — repo policy rejects `marsiwe/*` refs, so push worktree branch to this namespace with `git push origin HEAD:refs/heads/u/lixiangliu/broker-pipeline` |
+| Branch (push target) | Derive dynamically: run `git rev-parse --abbrev-ref --symbolic-full-name @{u}` to get the current branch's upstream (e.g. `origin/u/lixiangliu/official-pipelines`), strip the `origin/` prefix, and use that as the push target. If no upstream is set, ask the user. Push with `git push origin HEAD:refs/heads/<upstream-branch>`. |
 | Image tag format | `mcr.microsoft.com/luminasandboxservice/sandbox-broker:<build.number>-windows` |
 | Dev App Service | `lumina-sandbox-broker-dev-westus2` (westus2) |
 | Dev App Service URL | `https://lumina-sandbox-broker-dev-westus2.azurewebsites.net/` |
@@ -76,13 +76,16 @@ Previously, treating "Monitoring log clean" as "deploy succeeded" caused prematu
 ## Commands cheat-sheet
 
 ```bash
-# Commit + push (to allowed u/ namespace)
+# Derive upstream branch name (strip origin/ prefix)
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} | sed 's|^origin/||')
+
+# Commit + push (to upstream branch)
 git add -u && git commit -m "<msg>"
-git push origin HEAD:refs/heads/u/lixiangliu/broker-pipeline
+git push origin HEAD:refs/heads/$UPSTREAM
 
 # Queue build
 az pipelines run --org https://dev.azure.com/o365exchange --project "O365 Core" \
-  --id 54428 --branch u/lixiangliu/broker-pipeline \
+  --id 54428 --branch $UPSTREAM \
   --query "{id:id,buildNumber:buildNumber,status:status}" -o json
 
 # Check build
@@ -98,7 +101,7 @@ curl -sS -X POST "https://dev.azure.com/o365exchange/O365%20Core/_apis/build/bui
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{
     "definition":{"id":54444},
-    "sourceBranch":"refs/heads/u/lixiangliu/broker-pipeline",
+    "sourceBranch":"refs/heads/<UPSTREAM>",
     "templateParameters":{
       "dockerImage":"mcr.microsoft.com/luminasandboxservice/sandbox-broker:<build-number>-windows",
       "enableSlotSwap":"true"
@@ -152,6 +155,6 @@ Loop exits (and the cron job should be deleted with `CronDelete`) when all of th
 ## Notes
 
 - Today's worktree path may change across sessions; always re-derive from `pwd`. Skill assumes you're inside a `CopilotLumina` worktree.
-- If you land on the `master` branch, create a fresh `u/lixiangliu/broker-pipeline` branch before pushing.
+- If you land on the `master` branch, create a fresh branch and set upstream before pushing.
 - The user has confirmed region flip to westus2 is acceptable; don't ask again.
 - The user prefers terse status updates per iteration — one sentence: what you checked, what you did next.
