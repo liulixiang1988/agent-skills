@@ -42,7 +42,7 @@ Previously, treating "Monitoring log clean" as "deploy succeeded" caused prematu
 |------|-------|
 | Org | `https://dev.azure.com/o365exchange` |
 | Project | `O365 Core` |
-| Build pipeline | `54428` — `Lumina-SandboxBroker-Service-Build-Official` |
+| Build pipeline | `54428` — `Lumina-SandboxBroker-Service-Test-Build` |
 | Deploy pipeline (dev) | `54444` — `Lumina-SandboxBroker-Service-Dev-Deploy` |
 | Deploy pipeline (test) | (separate; see README) |
 | Branch (push target) | Derive dynamically: run `git rev-parse --abbrev-ref --symbolic-full-name @{u}` to get the current branch's upstream (e.g. `origin/u/lixiangliu/official-pipelines`), strip the `origin/` prefix, and use that as the push target. If no upstream is set, ask the user. Push with `git push origin HEAD:refs/heads/<upstream-branch>`. |
