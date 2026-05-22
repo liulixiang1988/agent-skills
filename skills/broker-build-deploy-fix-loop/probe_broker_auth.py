@@ -44,7 +44,14 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 
 VAULT = "lumina-dev"
 SECRET = "SelfSignedToken"
-BROKER = "lumina-sandbox-broker-dev-westus2.azurewebsites.net"
+# ASE v3 dev Site hostname (NOT the multi-tenant .azurewebsites.net or the old
+# .appserviceenvironment.net). Format: <site>.<ase>.p.azurewebsites.net.
+# Override via env var BROKER_HOST when targeting test/prod or a throwaway ASE.
+import os
+BROKER = os.environ.get(
+    "BROKER_HOST",
+    "lumina-sandbox-broker-ase-dev-westus2.lumina-broker-ase-dev-westus2.p.azurewebsites.net",
+)
 LIVENESS_URL = f"https://{BROKER}/healthz/ready"
 PROXY_ROOT_URL = f"https://{BROKER}/"
 ORCH_HOST = "luminasandboxorchestrator-g-2.luminadevaksprovider-westus2.dev.copilotlumina.com"
