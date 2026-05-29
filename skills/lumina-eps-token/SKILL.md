@@ -1,6 +1,6 @@
 ---
 name: lumina-eps-token
-description: "Acquire and validate Lumina EPS/LuminaServiceAPI bearer tokens using the CopilotLumina eps_client.py and get-lumina-token.ts helpers. Use when the user asks about Lumina token acquisition, EPS client authentication, testing luminaserviceapi hosts, running eps_client.py, validating v1/v3 EPS routes, or fixing local Bun/Python/uv environment issues for these flows."
+description: "Acquire and validate Lumina EPS/LuminaServiceAPI bearer tokens using the CopilotLumina eps_client.py and get-lumina-token.ts helpers. Use when the user asks about Lumina token acquisition, EPS client authentication, testing luminaserviceapi hosts, running eps_client.py, validating v1/v3 EPS routes, resolving bundled helper script paths across .agents/.claude/.copilot installs, or fixing local Bun/Python/uv environment issues for these flows."
 ---
 
 # Lumina EPS Token
@@ -31,10 +31,31 @@ Resolve these relative to the current CopilotLumina worktree root:
 
 From the CopilotLumina worktree, prefer the bundled helper because it handles Bun and Python command differences.
 
+### Resolving the helper script path
+
+The helpers live in this skill's own `scripts/` directory. The absolute path varies by host (for example, some agent hosts install skills under `~/.agents/skills/`, Claude Code `npx skill install` commonly uses `~/.claude/skills/`, and Copilot/Gemini/Codex installers may use their own roots). The skill may also be loaded directly from a source checkout such as an `agent-skills/skills/lumina-eps-token/` folder. Do not hardcode an install path. Instead, resolve it at run time using one of these strategies, in order:
+
+1. If the host exposes the skill directory via env var (for example, `CLAUDE_SKILL_DIR`, `SKILL_DIR`, `AGENT_SKILL_PATH`, or `AGENTS_SKILL_DIR`), use it.
+2. If the current workspace is the skill source repository, check `skills/lumina-eps-token` relative to the workspace root.
+3. Otherwise, search the conventional roots for a `lumina-eps-token` directory containing this SKILL.md:
+    - `$HOME/.agents/skills/lumina-eps-token`
+    - `$HOME/.claude/skills/lumina-eps-token`
+    - `$HOME/.codex/skills/lumina-eps-token`
+    - `$HOME/.gemini/skills/lumina-eps-token`
+    - `$HOME/.copilot/skills/lumina-eps-token`
+    - Any path matching `**/skills/lumina-eps-token/SKILL.md` reachable from the current working directory or the project worktree.
+4. As a last resort, ask the user where the skill is installed.
+
+On Windows, treat `$HOME` as the user's home directory; in PowerShell that is usually `$env:USERPROFILE`.
+
+Pick the first match that contains both `scripts/Invoke-LuminaEpsClient.ps1` and `scripts/invoke-lumina-eps-client.sh`, then invoke from there.
+
+### Invocation once `$skillDir` is resolved
+
 Windows PowerShell:
 
 ```powershell
-& "$env:USERPROFILE\work\agent-skills\skills\lumina-eps-token\scripts\Invoke-LuminaEpsClient.ps1" `
+& "$skillDir\scripts\Invoke-LuminaEpsClient.ps1" `
   -Description "Hi" `
   -Url "luminaserviceapi-b-4.luminadevaks-westus3.dev.copilotlumina.com" `
   -EpsVersion "v1"
@@ -43,11 +64,13 @@ Windows PowerShell:
 macOS/Linux:
 
 ```bash
-bash "$HOME/work/agent-skills/skills/lumina-eps-token/scripts/invoke-lumina-eps-client.sh" \
+bash "$skillDir/scripts/invoke-lumina-eps-client.sh" \
   --description "Hi" \
   --url "luminaserviceapi-b-4.luminadevaks-westus3.dev.copilotlumina.com" \
   --eps-version "v1"
 ```
+
+Both helpers default `--repo-root` / `-RepoRoot` to the current working directory, so run them from inside the CopilotLumina worktree (or pass `--repo-root <path>`).
 
 Direct equivalent when environment is already ready:
 
