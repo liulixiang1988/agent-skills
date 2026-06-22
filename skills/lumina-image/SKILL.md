@@ -1,11 +1,28 @@
 ---
 name: lumina-image
-description: "Build Lumina container images. Use this skill when the user wants to build the proxy API image, build the SandboxControlPlane API image, build the sandbox agent image, or build any Lumina-specific Docker image (e.g., 'build proxy api image', 'build scp api image', 'build sandboxcontrolplane image', 'build sandbox agent')."
+description: "Build Lumina container images. Use this skill when the user wants to build the LuminaServiceAPI image, proxy API image, SandboxControlPlane API image, sandbox agent image, or any Lumina-specific Docker image (e.g., 'build lumina service api image', 'build service api and push to devaks/lumina-service-api', 'build proxy api image', 'build scp api image', 'build sandboxcontrolplane image', 'build sandbox agent')."
 ---
 
 # Lumina Image Build Commands
 
 You build Lumina-specific container images by sourcing and calling pre-built script functions. Do NOT manually replicate the steps in the scripts — just source and call the function directly.
+
+## Build LuminaServiceAPI Image (Windows Only)
+
+When the user asks to build the LuminaServiceAPI image, service API image, or push to `luminadevaks.azurecr.io/devaks/lumina-service-api`, use the existing AKS pipeline pattern: restore/build `sources\dev\LuminaService\LuminaService.sln`, then build `LuminaServiceAPI` with `LuminaServiceAPI\DockerBuildConfigs\Dockerfile.dev` and push to `luminadevaks.azurecr.io/devaks/lumina-service-api`.
+
+```powershell
+if (-not $Env:MS_PATH) { $Env:MS_PATH = Get-Location }
+. "<skill-path>/scripts/build-proxy.ps1"; lumina_build_service_api_image
+```
+
+Optional parameters:
+
+```powershell
+lumina_build_service_api_image -TagPrefix hssot
+lumina_build_service_api_image -ImageRepository luminadevaks.azurecr.io/devaks/lumina-service-api
+lumina_build_service_api_image -SkipRestoreBuild
+```
 
 ## Build Proxy API Image (Windows Only)
 
@@ -142,12 +159,13 @@ Do you want me to replace this container image now?
 ## Prerequisites
 
 - **`MS_PATH`**: Must point to the CopilotLumina root directory. If not set, the commands above auto-detect it from the current working directory.
-- **ACR Login**: If a docker push fails with an authentication error, run `az acr login -n luminaacrdev` and retry.
+- **ACR Login**: `lumina_build_service_api_image` logs in to `luminadevaks`; if auth fails, run `az login` then retry. For legacy dev ACR images, if a docker push fails with an authentication error, run `az acr login -n luminaacrdev` and retry.
 - **`<skill-path>`**: Replace with the actual path to the skill directory containing the `scripts` folder.
 - **Kubernetes updates**: Before replacing a deployment image, ask the user to choose the kube context, namespace, and deployment, then ask for explicit confirmation before applying the change.
 
 ## Behavior
 
+- `lumina_build_service_api_image` is Windows/PowerShell only and pushes to `luminadevaks.azurecr.io/devaks/lumina-service-api` by default.
 - `lumina_build_proxy_api_image` remains Windows/PowerShell only.
 - `lumina_build_scp_api_image` is Windows/PowerShell only.
 - `sandbox_build_agent_image` now supports both Windows (PowerShell) and macOS/Linux (bash/zsh).

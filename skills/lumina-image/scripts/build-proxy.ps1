@@ -1,3 +1,81 @@
+function lumina_build_service_api_image() {
+    param(
+        [string]$TagPrefix = "hssot",
+        [string]$ImageRepository = "luminadevaks.azurecr.io/devaks/lumina-service-api",
+        [switch]$SkipRestoreBuild
+    )
+
+    if (-not $Env:MS_PATH) {
+        throw "MS_PATH environment variable is not set. Set it to the CopilotLumina repo root."
+    }
+
+    $uniqueId = Get-Date -Format "yyyyMMddHHmmss"
+    $commit = ""
+    try {
+        $commit = (git -C $Env:MS_PATH rev-parse --short HEAD 2>$null).Trim()
+    }
+    catch {
+        $commit = ""
+    }
+
+    $dockerImageTag = if ([string]::IsNullOrWhiteSpace($commit)) {
+        "${ImageRepository}:${TagPrefix}-${uniqueId}"
+    }
+    else {
+        "${ImageRepository}:${TagPrefix}-${uniqueId}-${commit}"
+    }
+
+    $projectRoot = Join-Path -Path $Env:MS_PATH -ChildPath "sources\dev\LuminaService"
+    $solutionPath = Join-Path -Path $projectRoot -ChildPath "LuminaService.sln"
+    $dockerFile = Join-Path -Path $projectRoot -ChildPath "LuminaServiceAPI\DockerBuildConfigs\Dockerfile.dev"
+    $dockerContext = Join-Path -Path $projectRoot -ChildPath "LuminaServiceAPI"
+    $nugetConfig = Join-Path -Path $Env:MS_PATH -ChildPath "NuGet.config"
+
+    Write-Host "Docker image tag: $dockerImageTag"
+    Write-Host "Using Dockerfile: $dockerFile"
+    Write-Host "Using Docker context: $dockerContext"
+
+    if (-not $SkipRestoreBuild) {
+        if (Test-Path $nugetConfig) {
+            dotnet restore $solutionPath --configfile $nugetConfig
+        }
+        else {
+            dotnet restore $solutionPath
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to restore solution at $solutionPath"
+            return
+        }
+
+        dotnet build $solutionPath --no-restore
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to build solution at $solutionPath"
+            return
+        }
+    }
+
+    az acr login -n luminadevaks
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to login to ACR: luminadevaks"
+        return
+    }
+
+    docker build --file $dockerFile --tag $dockerImageTag $dockerContext
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to build docker image: $dockerImageTag"
+        return
+    }
+
+    docker push $dockerImageTag
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to push docker image: $dockerImageTag"
+        return
+    }
+
+    Write-Host "Docker image tag: $dockerImageTag"
+}
+
 function lumina_build_proxy_api_image() {
     if (-not $Env:MS_PATH) {
         throw "MS_PATH environment variable is not set. Set it to the CopilotLumina repo root."
