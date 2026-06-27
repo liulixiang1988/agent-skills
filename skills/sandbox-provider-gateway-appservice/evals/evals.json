@@ -1,0 +1,42 @@
+{
+  "skill_name": "sandbox-provider-gateway-appservice",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "@build\\pipelines\\infra\\deploy\\MOBR-Deployment.SandboxACIInfra.Dev.yml and sources\\dev\\LuminaService\\SandboxProviderGateway: change the infra so App Service supports both image deployment and compiled code deployment at the same time. The instance names must be different. Then tell me exactly what to build and deploy.",
+      "expected_output": "A plan or implementation that keeps image and code App Services as coexisting resources, uses a distinct code app suffix such as -code, updates the infra/build artifact surfaces, and explains that build pipeline 51424 must run before deploy pipeline 54477.",
+      "files": [],
+      "expectations": [
+        "Mentions image and code deployments are coexistence, not a switch or overwrite.",
+        "Mentions distinct app naming for the code deployment, usually appName plus -code.",
+        "Mentions the relevant infra files under build\\pipelines\\infra and the SandboxProviderGateway project.",
+        "Mentions running build pipeline 51424 before deploy pipeline 54477 because deploy consumes the built infra artifact."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "The 54477 deploy failed after zip deploy. /healthz/ready is returning 500 and App Service shows ASP.NET Core app failed to start / CoreCLR errors. Cancel if needed, then analyze logs and tell me the likely fix.",
+      "expected_output": "A triage response that checks App Service/Kudu logs, identifies the code App Service or staging slot runtime as a likely .NET/bitness issue, and recommends setting .NET v8.0 plus 64-bit on both app and slot in ARM before rebuilding and redeploying.",
+      "files": [],
+      "expectations": [
+        "Treats the failure as an App Service runtime/startup issue rather than a generic pipeline failure.",
+        "Mentions checking App Service logs and Kudu deployment logs.",
+        "Identifies missing or wrong .NET 8 runtime and 32-bit worker as likely causes for 500.30/CoreCLR failures.",
+        "Says the ARM template should explicitly configure both production app and staging slot."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "The new App Service deployment succeeded. Validate whether the SandboxProviderGateway API and business logic work, including logs/monitoring if possible.",
+      "expected_output": "A validation flow covering App Service state/runtime, /healthz ready/live, unauthenticated 401 behavior, authenticated /connect negative tests with Lumina token, positive forwarding requirement for a real sandbox private IP:port, and App Service/App Insights/Log Analytics checks.",
+      "files": [],
+      "expectations": [
+        "Checks /healthz/ready and /healthz/live for 200.",
+        "Explains that /connect requires a valid Lumina/R9 token and Container-Host.",
+        "Includes SSRF/port negative tests such as IMDS, loopback, and port 443.",
+        "States that a true positive proxy test needs a real reachable sandbox private IP:port.",
+        "Mentions App Service logs, diagnostic settings, App Insights, or Log Analytics validation."
+      ]
+    }
+  ]
+}
