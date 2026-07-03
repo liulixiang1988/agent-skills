@@ -1,0 +1,44 @@
+{
+  "skill_name": "lumina-devaks-build-deploy-test-loop",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "重新用 build 37538553 的参数跑一下 CopilotLumina DevAKS a-2 westus3 部署，等 pipeline 完成后创建 sandbox，然后用 bash:runCommand curl graph.microsoft.com 的 /v1.0/users/lixiangliu@microsoft.com/photo/$value，最后看 lumina-api 和 egress-llm 日志。",
+      "expected_output": "The agent should use Lumina ExpAks Deploy pipeline 48192 with reference parameters, wait for completion, create a sandbox through luminaapi-a-2.luminadevaks-westus3.dev.copilotlumina.com, run the Graph bash probe, inspect lumina-api-a-2 and lumina-sandbox-a-2 logs, and classify the result without printing tokens.",
+      "files": [],
+      "expectations": [
+        "Uses pipeline ID 48192 rather than 53278",
+        "Uses profile a-2, region westus3, AKS context luminadevaks-aks-westus3, namespace lumina-agent-a",
+        "Creates sandbox with SandboxProxy.InternalDispatch enabled and Graph hosts",
+        "Runs POST /api/v3/sandboxes/{sandboxId}/bash:runCommand against the Graph profile photo $value path",
+        "Checks lumina-api-a-2, egress-llm, and egress-proxy logs",
+        "Does not reveal bearer tokens"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "pipeline 已经成功了，但是 sandbox 里面访问 graph photo 返回 403 InternalDispatchNotEnabled。帮我进入 fix loop，判断应该改哪里。",
+      "expected_output": "The agent should classify InternalDispatchNotEnabled as Lumina.Api service registration/runtime enablement, inspect SandboxProxy:InternalDispatch binding and appsettings/catalog wiring, run focused tests, commit/push, redeploy with the same DevAKS parameters, and revalidate.",
+      "files": [],
+      "expectations": [
+        "Classifies InternalDispatchNotEnabled as a Lumina.Api enablement/registration/runtime-check problem",
+        "Checks SandboxProxy:InternalDispatch:Enabled instead of adding an unrelated top-level InternalDispatch switch",
+        "Runs focused Lumina.Api InternalDispatch tests before redeploying",
+        "Repeats pipeline deployment and sandbox validation after the fix"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "想快一点，先本地 build Lumina.Api image 推到 luminadevaks，然后替换 a-2 AKS 上的 lumina-api image 试一下；如果 pipeline 还在跑不要让它覆盖。",
+      "expected_output": "The agent should build the Windows Lumina.Api image with Dockerfile.dev, push to luminadevaks.azurecr.io/devaks/lumina-api, ask for explicit confirmation before kubectl set image, update deployment lumina-api-a-2 container lumina-api in namespace lumina-agent-a on context luminadevaks-aks-westus3, verify rollout, and warn/cancel/wait for competing pipeline runs.",
+      "files": [],
+      "expectations": [
+        "Builds using sources/dev/LuminaService/Lumina.Api/DockerBuildConfigs/Dockerfile.dev",
+        "Pushes to luminadevaks.azurecr.io/devaks/lumina-api with a unique local tag",
+        "Asks for context, namespace, deployment, container, image, and final confirmation before replacing",
+        "Uses kubectl rollout status and verifies the deployment image",
+        "Accounts for in-progress pipelines that may overwrite the manual image"
+      ]
+    }
+  ]
+}
