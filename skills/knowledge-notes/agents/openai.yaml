@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Notes · 知识笔记"
+  short_description: "将当前会话或指定主题整理为知识笔记，自动归类到 OneDrive Obsidian 知识库"
+  default_prompt: "使用 $knowledge-notes 把当前会话中值得复用的知识整理到我的 Obsidian 知识库，按内容归类并补充已有笔记。"
