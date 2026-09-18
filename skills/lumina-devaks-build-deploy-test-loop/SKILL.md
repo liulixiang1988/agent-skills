@@ -1,11 +1,11 @@
 ---
 name: lumina-devaks-build-deploy-test-loop
-description: "Run the CopilotLumina DevAKS a-2/westus3 develop → build → deploy → validate → diagnose → fix loop for Lumina.Api InternalDispatch and sandbox egress changes. Use this skill whenever the user asks to run or rerun the DevAKS ExpAks deploy from reference build 37538553, deploy branch changes to luminadevaks, create a sandbox through the a-2 endpoint, validate Graph profile-photo InternalDispatch via bash:runCommand, inspect lumina-api / egress-llm / egress-proxy logs, locally build and optionally replace the lumina-api image, or keep iterating until the Graph path no longer fails with InternalDispatchNotEnabled."
+description: "Run the CopilotLumina DevAKS a-2/westus3 develop → build → deploy → validate → diagnose → fix loop for Lumina.Api ApiDispatch and sandbox egress changes. Use this skill whenever the user asks to run or rerun the DevAKS ExpAks deploy from reference build 37538553, deploy branch changes to luminadevaks, create a sandbox through the a-2 endpoint, validate Graph profile-photo or AugLoop HTTP/SSE ApiDispatch via bash:runCommand, inspect lumina-api / egress-llm / egress-proxy logs, locally build and optionally replace the lumina-api image, or keep iterating until Graph/AugLoop dispatch works."
 ---
 
 # Lumina DevAKS Build / Deploy / Validate / Fix Loop
 
-Use this skill to drive the known CopilotLumina DevAKS validation loop for profile `a-2` in `westus3`. The loop is optimized for Lumina.Api InternalDispatch, SandboxProxy, and egress-llm changes:
+Use this skill to drive the known CopilotLumina DevAKS validation loop for profile `a-2` in `westus3`. The loop is optimized for Lumina.Api ApiDispatch, SandboxProxy, and egress-llm changes:
 
 1. inspect and fix code locally
 2. run focused validation
@@ -13,7 +13,7 @@ Use this skill to drive the known CopilotLumina DevAKS validation loop for profi
 4. trigger the correct DevAKS pipeline with the known reference parameters
 5. wait for deployment completion
 6. create a sandbox through the DevAKS a-2 Lumina.Api endpoint
-7. run a bash Graph profile-photo probe through the sandbox proxy chain
+7. run bash Graph profile-photo and AugLoop HTTP/SSE workflow probes through the sandbox proxy chain
 8. inspect Lumina.Api, egress-llm, and egress-proxy logs
 9. diagnose, patch, and repeat
 
@@ -48,13 +48,13 @@ Do not use the public `luminaapi-eastus2.test.copilotlumina.com` endpoint for th
 2. Never print bearer tokens, refresh tokens, Authorization headers, or token cache contents. It is fine to say a token was acquired.
 3. Prefer the pipeline path for final validation. Local image replacement is useful for speed, but a running pipeline can overwrite a manual `kubectl set image`; cancel or wait for competing pipelines before relying on a manual image.
 4. Keep validation artifacts outside the repo, such as under the session artifact directory.
-5. The goal is not just "pipeline passed"; the goal is a live sandbox request that exercises egress-proxy -> egress-llm -> Lumina.Api InternalDispatch and produces useful logs.
+5. The goal is not just "pipeline passed"; the goal is a live sandbox request that exercises egress-proxy -> egress-llm -> Lumina.Api ApiDispatch and produces useful logs.
 
 ## Local development and focused checks
 
 Before deploying, inspect the current branch and run targeted checks for the files touched by the fix.
 
-Useful checks from the InternalDispatch workflow:
+Useful checks from the ApiDispatch workflow:
 
 ```powershell
 git --no-pager status --short --branch
@@ -259,26 +259,17 @@ $endpoint = "https://luminaapi-a-2.luminadevaks-westus3.dev.copilotlumina.com"
 $sandboxId = "itest-internaldispatch-$(Get-Date -Format yyyyMMdd-HHmmss)"
 ```
 
-Open request body:
+Open request body for the provider-neutral ApiDispatch contract:
 
 ```json
-{
-  "proxyOptions": {
-    "internalDispatch": {
-      "enabled": true,
-      "rules": [
-        {
-          "name": "Graph",
-          "hosts": [
-            "graph.microsoft.com",
-            "graph.microsoft-ppe.com"
-          ]
-        }
-      ]
-    }
-  }
-}
+{}
 ```
+
+`{}` is the preferred positive-case body: it omits `proxyOptions`, so Lumina.Api emits the server-authoritative `SandboxProxy:ApiDispatch` defaults into `sandbox_proxy_config.json`.
+
+Use `{"proxyOptions":{"apiDispatch":{"enabled":true}}}` only when the test should assert that server-side ApiDispatch must be configured/enabled and should fail closed otherwise.
+
+Use `{"proxyOptions":{"apiDispatch":{"enabled":false}}}` for the explicit-disable negative case.
 
 Headers:
 
@@ -304,7 +295,7 @@ Request body:
 {
   "command": "set -o pipefail; echo \"sandbox_graph_start=$(date -Iseconds)\"; echo \"--- proxy env ---\"; env | grep -i proxy || true; echo \"--- curl verbose ---\"; curl -v -sS -D /tmp/graph_headers.txt -o /tmp/graph_photo.bin -w \"CURL_HTTP_CODE=%{http_code}\\nCURL_EXIT=%{exitcode}\\n\" --max-time 90 \"https://graph.microsoft.com/v1.0/users/lixiangliu@microsoft.com/photo/\\$value\" 2>&1; rc=$?; echo \"COMMAND_EXIT=$rc\"; echo \"--- response headers ---\"; sed -n \"1,40p\" /tmp/graph_headers.txt 2>/dev/null || true; echo \"--- downloaded file ---\"; ls -l /tmp/graph_photo.bin 2>/dev/null || true; echo \"sandbox_graph_end=$(date -Iseconds)\"; exit 0",
   "timeout": 120000,
-  "description": "Validate InternalDispatch Graph profile photo access"
+  "description": "Validate ApiDispatch Graph profile photo access"
 }
 ```
 
@@ -312,7 +303,45 @@ Important: escape `$value` in PowerShell/JSON contexts so the final URL sent ins
 
 `https://graph.microsoft.com/v1.0/users/lixiangliu@microsoft.com/photo/$value`
 
-If `$value` is not escaped, bash expands it to an empty environment variable and the request becomes `/photo/`, which is expected to fail catalog matching with `InternalDispatchOperationNotAllowed`.
+If `$value` is not escaped, bash expands it to an empty environment variable and the request becomes `/photo/`, which is expected to fail catalog matching with `ApiDispatchOperationNotAllowed`.
+
+## Run AugLoop HTTP and SSE workflow probes through bash
+
+Use AugLoop workflow URLs, not `/files`, when validating SSE. The `/workflows/{workflowId}` catalog allows both `Http` and `Sse`; `/files` entries are HTTP-only.
+
+HTTP workflow probe:
+
+```json
+{
+  "command": "set -o pipefail; echo \"sandbox_augloop_http_start=$(date -Iseconds)\"; printf '{\"input\":\"hello from lumina internal dispatch validation\"}' > /tmp/augloop_workflow_request.json; curl -v -sS -X POST -H \"content-type: application/json\" -D /tmp/augloop_http_headers.txt -o /tmp/augloop_http_body.txt -w \"CURL_HTTP_CODE=%{http_code}\\nCURL_EXIT=%{exitcode}\\n\" --data-binary @/tmp/augloop_workflow_request.json --max-time 90 \"https://dogfood.augloop.svc.cloud.microsoft/workflows/lumina-internal-dispatch-validation\" 2>&1; rc=$?; echo \"COMMAND_EXIT=$rc\"; echo \"--- response headers ---\"; sed -n \"1,80p\" /tmp/augloop_http_headers.txt 2>/dev/null || true; echo \"--- response body preview ---\"; head -c 1000 /tmp/augloop_http_body.txt 2>/dev/null || true; echo; echo \"sandbox_augloop_http_end=$(date -Iseconds)\"; exit 0",
+  "timeout": 120000,
+  "description": "Validate ApiDispatch AugLoop workflow over HTTP"
+}
+```
+
+SSE workflow probe:
+
+```json
+{
+  "command": "set -o pipefail; echo \"sandbox_augloop_sse_start=$(date -Iseconds)\"; printf '{\"input\":\"hello from lumina internal dispatch sse validation\"}' > /tmp/augloop_sse_request.json; curl -N -v -sS -X POST -H \"accept: text/event-stream\" -H \"content-type: application/json\" -D /tmp/augloop_sse_headers.txt -o /tmp/augloop_sse_body.txt -w \"CURL_HTTP_CODE=%{http_code}\\nCURL_EXIT=%{exitcode}\\n\" --data-binary @/tmp/augloop_sse_request.json --max-time 90 \"https://dogfood.augloop.svc.cloud.microsoft/workflows/lumina-internal-dispatch-validation\" 2>&1; rc=$?; echo \"COMMAND_EXIT=$rc\"; echo \"--- response headers ---\"; sed -n \"1,80p\" /tmp/augloop_sse_headers.txt 2>/dev/null || true; echo \"--- response body preview ---\"; head -c 1000 /tmp/augloop_sse_body.txt 2>/dev/null || true; echo; echo \"sandbox_augloop_sse_end=$(date -Iseconds)\"; exit 0",
+  "timeout": 120000,
+  "description": "Validate ApiDispatch AugLoop workflow over SSE"
+}
+```
+
+For Bearer-only sandboxes, success can be the missing-PFT mock: `HTTP 200`, `content-type: text/event-stream`, `x-ms-lumina-api-dispatch-mock: true`, and SSE frames like `event: message` followed by `event: done`. This proves the SSE route, transport classification, catalog match, and response shape; it does not prove real upstream AugLoop auth without a stored current PFT.
+
+## Positive and negative ApiDispatch validation cases
+
+Run these cases when validating provider-neutral ApiDispatch changes:
+
+| Case | Open body | Probe | Expected evidence |
+|---|---|---|---|
+| Positive default | `{}` | Graph profile photo, AugLoop HTTP, AugLoop SSE | All return `HTTP 200`; Graph may return mock `image/png` with `x-ms-lumina-api-dispatch-mock: true` and `missing-pft`; SSE returns `content-type: text/event-stream` with `event: message` then `event: done`; egress-proxy rewrites to `/api/v3/internal/apiDispatch:invoke`; egress-llm logs `metadataDecoded=true`, `matchedRule=Graph` / `AugLoopDogfood`, `transport=Http` / `Sse`, and `upstreamStatus=200`. |
+| Explicit disabled | `{"proxyOptions":{"apiDispatch":{"enabled":false}}}` | Graph profile photo with no Graph auth header | Request should not go through ApiDispatch. Expected direct Graph response is `HTTP 401` with Graph `InvalidAuthenticationToken`, no `x-ms-lumina-api-dispatch-mock` header, and no ApiDispatch rewrite/match logs for that sandbox. |
+| Unsupported catalog/path | `{}` | `https://graph.microsoft.com/v1.0/this-path-should-not-match-lumina-api-dispatch-validation` | Request reaches ApiDispatch but fails closed with `HTTP 403`, `x-ms-error-code: ApiDispatchOperationNotAllowed`, and a Lumina correlation ID. |
+
+DevAKS a-2 has a small pod pool. If sandbox open fails with `NoAvailablePods`, close prior test sandboxes and retry after replacement pods become ready.
 
 ## Inspect logs
 
@@ -322,31 +351,31 @@ Lumina.Api:
 
 ```powershell
 kubectl --context luminadevaks-aks-westus3 -n lumina-agent-a logs deployment/lumina-api-a-2 --tail=500 |
-  Select-String -Pattern "InternalDispatch|InternalDispatchNotEnabled|InternalDispatchOperationNotAllowed|CatalogEntry|UpstreamRequestId|x-ms-lumina-correlation-id"
+  Select-String -Pattern "ApiDispatch|InternalDispatch|ApiDispatchNotEnabled|InternalDispatchNotEnabled|ApiDispatchOperationNotAllowed|InternalDispatchOperationNotAllowed|CatalogEntry|UpstreamRequestId|x-ms-lumina-correlation-id"
 ```
 
 Sandbox egress-llm:
 
 ```powershell
 kubectl --context luminadevaks-aks-westus3 -n lumina-agent-a logs -l app=lumina-sandbox-a-2 -c egress-llm --tail=800 |
-  Select-String -Pattern "internal:dispatch|metadataDecoded|matchedRule|targetHost|targetPathHash|upstreamStatus|upstreamLuminaCorrelationId|Graph"
+  Select-String -Pattern "api:dispatch|apiDispatch|internal:dispatch|metadataDecoded|matchedRule|targetHost|targetPathHash|upstreamStatus|upstreamLuminaCorrelationId|Graph|AugLoop|transport|dogfood.augloop"
 ```
 
 Sandbox egress-proxy:
 
 ```powershell
 kubectl --context luminadevaks-aks-westus3 -n lumina-agent-a logs -l app=lumina-sandbox-a-2 -c egress-proxy --tail=800 |
-  Select-String -Pattern "InternalDispatch|Graph|graph.microsoft.com|CONNECT|rewrite"
+  Select-String -Pattern "ApiDispatch|api_dispatch|InternalDispatch|Graph|AugLoop|graph.microsoft.com|dogfood.augloop|CONNECT|rewrite|text/event-stream"
 ```
 
-Useful egress-llm fields that should appear for the Graph probe:
+Useful egress-llm fields that should appear for Graph and AugLoop probes:
 
-- `operation=internal:dispatch`
+- ApiDispatch dispatch operation log (`api:dispatch`, `apiDispatch`, or legacy `internal:dispatch` depending on branch)
 - `metadataDecoded=true`
-- `matchedRule=Graph`
-- `originalMethod=GET`
-- `transport=Http` or `transport=http`
-- `targetHost=graph.microsoft.com`
+- `matchedRule=Graph` for profile-photo, `matchedRule=AugLoopDogfood` for the dogfood workflow probe
+- `originalMethod=GET` for Graph, `originalMethod=POST` for AugLoop
+- `transport=Http` for Graph/AugLoop HTTP, `transport=Sse` for AugLoop SSE
+- `targetHost=graph.microsoft.com` or `targetHost=dogfood.augloop.svc.cloud.microsoft`
 - `targetPathLength`
 - `targetPathHash`
 - `upstreamStatus`
@@ -356,12 +385,14 @@ Useful egress-llm fields that should appear for the Graph probe:
 
 | Symptom | Meaning | Next action |
 |---|---|---|
-| `x-ms-error-code: InternalDispatchNotEnabled` | Lumina.Api registered or checked the disabled dispatch service. | Confirm `SandboxProxy:InternalDispatch:Enabled` is what the API binds for service registration and runtime checks; redeploy Lumina.Api. |
-| `InternalDispatchOperationNotAllowed` | Metadata reached Lumina.Api but catalog/rule/path/method/transport did not match. | Check appsettings `SandboxProxy.InternalDispatch.Rules[*].Catalogs` includes Graph, `GET`, `Http`, `/v1.0/users/{userId}/photo/$value`, and hosts. |
-| `InternalDispatchPftMissing` after egress-llm logs `matchedRule=Graph` | The request reached Lumina.Api InternalDispatch and matched the Graph catalog, but the sandbox has no stored current PFT. This is expected for Bearer-only validation. | Reopen or reconnect using a real MSAuth1.0 PFT request context, or report this as the current test-context blocker rather than an enablement/catalog failure. |
-| egress-llm shows `metadataDecoded=false` or missing target fields | egress-llm did not decode or forward metadata as expected. | Inspect egress-llm internal-dispatch handler and tests. |
-| egress-proxy logs show no Graph/InternalDispatch activity | Request may not be going through mitmproxy or rule matching failed before egress-llm. | Check sandbox proxy config inside the sandbox pod and `HTTP_PROXY` / `HTTPS_PROXY` env. |
-| Graph returns 401/403 with Graph request IDs but no Lumina `InternalDispatchNotEnabled` | The relay path reached Graph; remaining issue is auth/PFT/AT_POP or Graph permission. | Inspect Lumina.Api `ApplyAuthorization` / PFT availability and upstream Graph headers. |
+| `x-ms-error-code: ApiDispatchNotEnabled` | Lumina.Api registered or checked the disabled dispatch service. | Confirm `SandboxProxy:ApiDispatch:Enabled` is what the API binds for service registration and runtime checks; redeploy Lumina.Api. |
+| `ApiDispatchOperationNotAllowed` | Metadata reached Lumina.Api but catalog/rule/path/method/transport did not match. | Check appsettings `SandboxProxy:ApiDispatch:Rules[*].Catalogs` includes Graph, `GET`, `Http`, `/v1.0/users/{userId}/photo/$value`, and hosts. |
+| `ApiDispatchPftMissing` after egress-llm logs `matchedRule=Graph`, or `HTTP 200` with `x-ms-lumina-api-dispatch-mock: true` and `missing-pft` | The request reached Lumina.Api ApiDispatch and matched the Graph catalog, but the sandbox has no stored current PFT. This is expected for Bearer-only validation when mock responses are enabled. | Reopen or reconnect using a real MSAuth1.0 PFT request context, or report this as the current test-context blocker rather than an enablement/catalog failure. |
+| AugLoop SSE returns `text/event-stream` with `x-ms-lumina-api-dispatch-mock: true` and `event: message` / `event: done` frames | The sandbox proxy classified `Accept: text/event-stream` as `Sse`, egress-llm forwarded it, Lumina.Api matched the AugLoop workflow catalog, and the SSE-specific missing-PFT mock response shape works. | Record this as successful SSE route/transport/shape validation; real upstream AugLoop still requires a current PFT. |
+| AugLoop `/files` with SSE fails catalog matching | Expected: AugLoop file catalog entries are HTTP-only. | Use `/workflows/{workflowId}` for SSE validation. |
+| egress-llm shows `metadataDecoded=false` or missing target fields | egress-llm did not decode or forward metadata as expected. | Inspect egress-llm ApiDispatch/internal-dispatch handler and tests. |
+| egress-proxy logs show no Graph/ApiDispatch activity | Request may not be going through mitmproxy or rule matching failed before egress-llm. | Check sandbox proxy config inside the sandbox pod and `HTTP_PROXY` / `HTTPS_PROXY` env. |
+| Graph returns 401/403 with Graph request IDs but no Lumina `ApiDispatchNotEnabled` | The relay path reached Graph; remaining issue is auth/PFT/AT_POP or Graph permission. | Inspect Lumina.Api `ApplyAuthorization` / PFT availability and upstream Graph headers. |
 | HTTP 200 and a non-empty photo file | Best-case validation success. | Record sandbox ID, build ID, image tag, and log snippets as PR evidence. |
 
 ## Fix loop
@@ -371,7 +402,7 @@ When validation fails:
 1. Classify the failure using logs and response headers.
 2. Patch the smallest owning component:
    - Lumina.Api options/service registration/catalog/PFT/AT_POP logic
-   - SandboxProxy internal dispatch rule/config emission
+   - SandboxProxy ApiDispatch rule/config emission
    - egress-llm metadata forwarding/logging
    - egress-proxy CONNECT/rewrite behavior
 3. Run focused tests for the changed component.
@@ -390,6 +421,7 @@ When the loop completes or blocks, report:
 - image tag deployed to `lumina-api-a-2`
 - sandbox ID
 - bash Graph probe status and response headers
+- bash AugLoop HTTP and SSE probe status, response headers, and SSE frame preview when applicable
 - key egress-llm fields
 - key Lumina.Api logs/correlation IDs
-- whether the final blocker is InternalDispatch config, catalog matching, auth/PFT, Graph permission, or infrastructure
+- whether the final blocker is ApiDispatch config, catalog matching, auth/PFT, Graph/AugLoop permission, SSE response shape, or infrastructure

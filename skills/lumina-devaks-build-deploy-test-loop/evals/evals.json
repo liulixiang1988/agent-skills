@@ -3,14 +3,16 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "重新用 build 37538553 的参数跑一下 CopilotLumina DevAKS a-2 westus3 部署，等 pipeline 完成后创建 sandbox，然后用 bash:runCommand curl graph.microsoft.com 的 /v1.0/users/lixiangliu@microsoft.com/photo/$value，最后看 lumina-api 和 egress-llm 日志。",
-      "expected_output": "The agent should use Lumina ExpAks Deploy pipeline 48192 with reference parameters, wait for completion, create a sandbox through luminaapi-a-2.luminadevaks-westus3.dev.copilotlumina.com, run the Graph bash probe, inspect lumina-api-a-2 and lumina-sandbox-a-2 logs, and classify the result without printing tokens.",
+      "prompt": "重新用 build 37538553 的参数跑一下 CopilotLumina DevAKS a-2 westus3 部署，等 pipeline 完成后创建 sandbox，然后用 bash:runCommand curl graph.microsoft.com 的 /v1.0/users/lixiangliu@microsoft.com/photo/$value，并验证 AugLoop HTTP 和 SSE workflow，最后看 lumina-api、egress-llm、egress-proxy 日志。",
+      "expected_output": "The agent should use Lumina ExpAks Deploy pipeline 48192 with reference parameters, wait for completion, create a sandbox through luminaapi-a-2.luminadevaks-westus3.dev.copilotlumina.com, run Graph plus AugLoop HTTP/SSE bash probes, inspect lumina-api-a-2 and lumina-sandbox-a-2 logs, and classify the result without printing tokens.",
       "files": [],
       "expectations": [
         "Uses pipeline ID 48192 rather than 53278",
         "Uses profile a-2, region westus3, AKS context luminadevaks-aks-westus3, namespace lumina-agent-a",
-        "Creates sandbox with SandboxProxy.InternalDispatch enabled and Graph hosts",
+        "Creates sandbox with SandboxProxy.InternalDispatch enabled and Graph plus AugLoop hosts",
         "Runs POST /api/v3/sandboxes/{sandboxId}/bash:runCommand against the Graph profile photo $value path",
+        "Runs AugLoop workflow POST probes over HTTP and over SSE using Accept: text/event-stream",
+        "Verifies SSE by checking egress-proxy transport=Sse, egress-llm matchedRule=AugLoopDogfood and transport=Sse, and text/event-stream response frames",
         "Checks lumina-api-a-2, egress-llm, and egress-proxy logs",
         "Does not reveal bearer tokens"
       ]
